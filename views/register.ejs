@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register</title>                                                           
+  <style>                                                                            
+    /* General Body Styling */    
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    /* Container Styling */                                                                    
+    .container {
+      background: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    /* Header Styling */
+    h1 {
+      text-align: center;
+      color: #4caf50;
+      margin-bottom: 20px;
+    }
+
+    h3 {
+      margin: 10px 0;
+      color: #555;
+    }
+
+    /* Form Styling */
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    label {
+      font-weight: bold;
+    }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #3d80e4;
+      color: white;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #454ea0;
+    }
+
+    /* Search Bar Styling */
+    #screenSearch {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+
+    /* Screen List Styling */
+    #screensContainer {
+      max-height: 400px; /* Scrollable container for long lists */
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 10px;
+      background-color: #f9f9f9;
+    }
+
+    .screen-item {
+      padding: 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .screen-item:last-child {
+      border-bottom: none;
+    }
+
+    /* Responsiveness */
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+
+      input[type="text"], input[type="password"], button, #screenSearch {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Register</h1>
+    <form action="/register" method="POST">
+      <label for="userid">User ID:</label>
+      <input type="text" id="userid" name="userid" required />
+    
+      <label for="username">Username:</label>
+      <input type="text" id="username" name="username" required />
+    
+      <label for="password">Password:</label>
+      <input type="password" id="password" name="password" required />
+
+      
+      <h3>Select Screens:</h3>
+
+      <!-- Search input -->
+      <input type="text" id="screenSearch" placeholder="Search by Screen ID or Name" onkeyup="filterScreens()" />
+
+      <!-- Screens List -->
+      <div id="screensContainer">
+        <% screens.forEach(screen => { %>
+          <div class="screen-item">
+            <input type="checkbox" name="screenids" value="<%= screen.screenid %>" />
+            <label>Screen ID: <%= screen.screenid %></label><br>
+          </div>
+        <% }) %>
+      </div>
+
+      <button type="submit">Register</button>
+    </form>
+  </div>
+
+  <script>
+    function filterScreens() {
+      const searchValue = document.getElementById('screenSearch').value.toLowerCase();
+      const screens = document.querySelectorAll('.screen-item');
+
+      screens.forEach(screen => {
+        const screenText = screen.textContent.toLowerCase();
+        if (screenText.includes(searchValue)) {
+          screen.style.display = '';
+        } else {
+          screen.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>                                   
