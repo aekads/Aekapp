@@ -268,7 +268,7 @@ const generatePin = () => {
 };
 
 // **POST /forget-password** - Handle Forgot Password
-app.post("/forget-password", async (req, res) => {
+app.post("/forgot_password", async (req, res) => {
   const { userid } = req.body;
 
   // Validate input
