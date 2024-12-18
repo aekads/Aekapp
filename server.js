@@ -203,7 +203,7 @@ app.post("/register", async (req, res) => {
               Thank you for registering!
               Here are your details:
               - User ID: ${userid}
-              - Username: ${username}
+             
               - Password: ${password}
               
               Regards,
@@ -271,8 +271,12 @@ const generatePin = () => {
 app.post("/forget-password", async (req, res) => {
   const { email } = req.body;
 
+  // Validate input
   if (!email) {
-      return res.status(400).send("Email is required.");
+      return res.status(400).json({
+          success: false,
+          message: "Email is required.",
+      });
   }
 
   try {
@@ -280,7 +284,10 @@ app.post("/forget-password", async (req, res) => {
       const result = await pool.query("SELECT * FROM auth WHERE email = $1", [email]);
 
       if (result.rows.length === 0) {
-          return res.status(404).send("Email not found.");
+          return res.status(404).json({
+              success: false,
+              message: "Email not found.",
+          });
       }
 
       // Generate a new 4-digit PIN
@@ -297,7 +304,7 @@ app.post("/forget-password", async (req, res) => {
               You requested a password reset.
               Your PIN for resetting your password is: ${newPin}
 
-              If you did not request this, please ignore this email.
+              
 
               Regards,
               The Team
@@ -307,15 +314,25 @@ app.post("/forget-password", async (req, res) => {
       transporter.sendMail(mailOptions, (error, info) => {
           if (error) {
               console.error("Error sending email:", error);
-              return res.status(500).send("Error sending email.");
+              return res.status(500).json({
+                  success: false,
+                  message: "Error sending email.",
+              });
           }
           console.log("Email sent: " + info.response);
-          res.send("A 4-digit PIN has been sent to your email.");
-      });
 
+          // Respond with success
+          return res.json({
+              success: true,
+              message: "A 4-digit PIN has been sent to your email.",
+          });
+      });
   } catch (err) {
       console.error("Error handling password reset:", err);
-      res.status(500).send("An error occurred.");
+      res.status(500).json({
+          success: false,
+          message: "An error occurred while processing your request.",
+      });
   }
 });
 
