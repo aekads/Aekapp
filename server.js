@@ -267,7 +267,7 @@ const generatePin = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
-app.post("/forgot_password", async (req, res) => {
+app.post("/Api/forgot_password", async (req, res) => {
     const { userid } = req.body;
 
     // Validate input
