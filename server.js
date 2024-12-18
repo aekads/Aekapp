@@ -1,7 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
-
+const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = "auth_token@321456987";
 
@@ -12,6 +12,18 @@ const pool = new Pool({
   database: "dbzvtfeophlfnr",
   password: "AekAds@24",
   port: 5432,
+});
+
+
+
+
+// Nodemailer Configuration
+const transporter = nodemailer.createTransport({
+  service: "Gmail",
+  auth: {
+    user: "hp9537213@gmail.com",
+        pass: "bnfd oupg gnvk npzx",
+  },
 });
 
 // sdfknj
@@ -140,49 +152,76 @@ app.post(
 );
 
 // Registration Page
+// **GET /register**
 app.get("/register", async (req, res) => {
   try {
-    // Fetch screen IDs from the 'screens' table
-    const result = await pool.query("SELECT screenid FROM public.screens");
-    const screens = result.rows; // Extract rows from query result
-    res.render("register", { screens }); // Pass to EJS template
+      // Fetch screen IDs from the 'screens' table
+      const result = await pool.query("SELECT screenid FROM public.screens");
+      const screens = result.rows;
+      res.render("register", { screens }); // Pass screen IDs to the template
   } catch (error) {
-    console.error("Error fetching screens:", error);
-    res.status(500).send("Internal Server Error");
+      console.error("Error fetching screens:", error);
+      res.status(500).send("Internal Server Error");
   }
 });
 
-// Handle Registration
-// Handle Registration
+// **POST /register**
 app.post("/register", async (req, res) => {
-  const { userid, username, password, screenids } = req.body;
+  const { userid, username, password, email, screenids } = req.body;
 
   try {
-    // Validate input
-    if (!screenids || screenids.length === 0) {
-      return res.status(400).send("Please select at least one screen.");
-    }
-    if (!username || username.trim() === "") {
-      return res.status(400).send("Username is required.");
-    }
+      // Validate input
+      if (!screenids || screenids.length === 0) {
+          return res.status(400).send("Please select at least one screen.");
+      }
+      if (!username || username.trim() === "") {
+          return res.status(400).send("Username is required.");
+      }
+      if (!email || email.trim() === "") {
+          return res.status(400).send("Email is required.");
+      }
 
-    // Ensure screenids is an array
-    const formattedScreenIds = Array.isArray(screenids)
-      ? screenids
-      : [screenids]; // If single value, convert to array
+      // Ensure screenids is an array
+      const formattedScreenIds = Array.isArray(screenids)
+          ? screenids
+          : [screenids];
 
-    // Insert into database
-    await pool.query(
-      "INSERT INTO auth (userid, username, password, screenids) VALUES ($1, $2, $3, $4)",
-      [userid, username, password, formattedScreenIds]
-    );
+      // Insert into database
+      await pool.query(
+          "INSERT INTO auth (userid, username, password, email, screenids) VALUES ($1, $2, $3, $4, $5)",
+          [userid, username, password, email, formattedScreenIds]
+      );
 
-    res.redirect("/success");
+      // Send confirmation email
+      const mailOptions = {
+          from: "your_email@gmail.com", // Replace with your email
+          to: email,
+          subject: "Registration Successful",
+          text: `
+              Hello ${username},
+              
+              Thank you for registering!
+              Here are your details:
+              - User ID: ${userid}
+              - Username: ${username}
+              - Password: ${password}
+              
+              Regards,
+              The Team
+          `,
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+              console.error("Error sending email:", error);
+              return res.status(500).send("Registration successful, but failed to send email.");
+          }
+          console.log("Email sent: " + info.response);
+          res.redirect("/success"); // Redirect to success page
+      });
   } catch (err) {
-    console.error("Error saving user data:", err);
-    res
-      .status(500)
-      .send("Error saving user data. User ID might already exist.");
+      console.error("Error saving user data:", err);
+      res.status(500).send("Error saving user data. User ID or email might already exist.");
   }
 });
 
@@ -218,6 +257,72 @@ app.get("/login", async (req, res) => {
   }
 });
 
+
+
+
+
+
+// Function to generate 4-digit PIN
+const generatePin = () => {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
+// **POST /forget-password** - Handle Forgot Password
+app.post("/forget-password", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+      return res.status(400).send("Email is required.");
+  }
+
+  try {
+      // Check if the email exists in the database
+      const result = await pool.query("SELECT * FROM auth WHERE email = $1", [email]);
+
+      if (result.rows.length === 0) {
+          return res.status(404).send("Email not found.");
+      }
+
+      // Generate a new 4-digit PIN
+      const newPin = generatePin();
+
+      // Send the PIN to the user's email
+      const mailOptions = {
+          from: "your_email@gmail.com", // Replace with your email
+          to: email,
+          subject: "Your Password Reset PIN",
+          text: `
+              Hello,
+
+              You requested a password reset.
+              Your PIN for resetting your password is: ${newPin}
+
+              If you did not request this, please ignore this email.
+
+              Regards,
+              The Team
+          `,
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+              console.error("Error sending email:", error);
+              return res.status(500).send("Error sending email.");
+          }
+          console.log("Email sent: " + info.response);
+          res.send("A 4-digit PIN has been sent to your email.");
+      });
+
+  } catch (err) {
+      console.error("Error handling password reset:", err);
+      res.status(500).send("An error occurred.");
+  }
+});
+
+
+
+
+
 // User Check API
 app.post("/api/check-user", async (req, res) => {
   console.log("Request received:", req.body);
@@ -250,57 +355,109 @@ app.post("/api/check-user", async (req, res) => {
 app.post("/api/check-password", async (req, res) => {
   const { userid, password } = req.body;
 
-  try {
-    // Validate input
-    if (!userid || !password) {
+  // Validate input
+  if (!userid || !password) {
       return res.status(400).json({
-        success: false,
-        message: "UserID and Password are required.",
+          success: false,
+          message: "UserID and Password are required.",
       });
-    }
+  }
 
-    // Query the database to check if the userid and password combination exists
-    const result = await pool.query(
-      "SELECT userid, username FROM auth WHERE userid = $1 AND password = $2",
-      [userid, password]
-    );
+  try {
+      // Query the database for user details
+      const result = await pool.query(
+          "SELECT password, status FROM auth WHERE userid = $1",
+          [userid]
+      );
 
-    if (result.rows.length > 0) {
-      const { username } = result.rows[0];
+      if (result.rowCount === 0) {
+          return res.status(404).json({
+              success: false,
+              message: "UserID not found.",
+          });
+      }
 
-      // Generate a new JWT token
-      const token = jwt.sign({ userid, username }, JWT_SECRET, {
-        expiresIn: "1h",
-      });
+      const { password: storedPassword } = result.rows[0];
 
-      // Save the token in the database
-      await pool.query("UPDATE auth SET token = $1 WHERE userid = $2", [
-        token,
-        userid,
-      ]);
+      // Verify the password
+      if (password !== storedPassword) {
+          return res.status(401).json({
+              success: false,
+              message: "Incorrect password.",
+          });
+      }
 
-      // Respond to the client
+      // Generate a JWT token
+      const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "1h" });
+
+      // Update the user's status to 1 and save the token
+      await pool.query(
+          "UPDATE auth SET status = 1, token = $1 WHERE userid = $2",
+          [token, userid]
+      );
+
+      // Respond with success and the token
       res.json({
-        success: true,
-        message: "User authenticated.",
-        userid,
-        username,
-        token,
+          success: true,
+          message: "Password is correct. User logged in.",
+          token,
       });
-    } else {
-      res
-        .status(404)
-        .json({ success: false, message: "Invalid UserID or Password." });
-    }
   } catch (err) {
-    console.error("Error checking credentials:", err);
-    res.status(500).json({ success: false, message: "Internal Server Error." });
+      console.error("Error during password check:", err);
+      res.status(500).json({
+          success: false,
+          message: "Internal Server Error.",
+      });
   }
 });
 
+//log-out
+app.post("/api/logout", async (req, res) => {
+  const authHeader = req.headers.authorization; // Authorization header
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+          success: false,
+          message: "Authorization token is required.",
+      });
+  }
+
+  const token = authHeader.split(" ")[1]; // Extract the token from the header
+
+  try {
+      // Decode the token to extract the user ID
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const userid = decoded.userid;
+
+      // Update the database: Invalidate the token and set status to 0
+      const result = await pool.query(
+          "UPDATE auth SET token = NULL, status = 0 WHERE userid = $1 AND token = $2 RETURNING userid",
+          [userid, token]
+      );
+
+      if (result.rowCount === 0) {
+          return res.status(404).json({
+              success: false,
+              message: "Invalid Token or UserID.",
+          });
+      }
+
+      // Respond with success message
+      res.json({
+          success: true,
+          message: "User successfully logged out.",
+      });
+  } catch (err) {
+      console.error("Error during logout:", err);
+      res.status(500).json({
+          success: false,
+          message: "Internal Server Error.",
+      });
+  }
+});
 // API to Fetch Screen Details
-  
-//Check if screen id add fetch screen with json web token and screen name
+
+//Check if screen id add fetch screen with json web token and screen name       
 
 app.post("/api/get-screen-details", verifyToken, async (req, res) => {
   const { userid } = req.body;
