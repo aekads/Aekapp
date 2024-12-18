@@ -269,26 +269,28 @@ const generatePin = () => {
 
 // **POST /forget-password** - Handle Forgot Password
 app.post("/forget-password", async (req, res) => {
-  const { email } = req.body;
+  const { userid } = req.body;
 
   // Validate input
-  if (!email) {
+  if (!userid) {
       return res.status(400).json({
           success: false,
-          message: "Email is required.",
+          message: "UserID is required.",
       });
   }
 
   try {
-      // Check if the email exists in the database
-      const result = await pool.query("SELECT * FROM auth WHERE email = $1", [email]);
+      // Check if the userid exists in the database and fetch the email
+      const result = await pool.query("SELECT email FROM auth WHERE userid = $1", [userid]);
 
       if (result.rows.length === 0) {
           return res.status(404).json({
               success: false,
-              message: "Email not found.",
+              message: "UserID not found.",
           });
       }
+
+      const { email } = result.rows[0];
 
       // Generate a new 4-digit PIN
       const newPin = generatePin();
@@ -303,8 +305,6 @@ app.post("/forget-password", async (req, res) => {
 
               You requested a password reset.
               Your PIN for resetting your password is: ${newPin}
-
-              
 
               Regards,
               The Team
@@ -324,7 +324,7 @@ app.post("/forget-password", async (req, res) => {
           // Respond with success
           return res.json({
               success: true,
-              message: "A 4-digit PIN has been sent to your email.",
+              message: "A 4-digit PIN has been sent to the registered email.",
           });
       });
   } catch (err) {
@@ -335,6 +335,7 @@ app.post("/forget-password", async (req, res) => {
       });
   }
 });
+
 
 
 
@@ -616,7 +617,7 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
 });
 
 // API to set video data in specified slot for all screenids of a user
-// API to set video data in slot9 or slot10 for all screenids of a user
+// API to set video data in slot9 or slot10 for all screenids of a user         
 // app.post("/api/set-video-slot", async (req, res) => {
 //   const { userid, video_Data, slot_number } = req.body;
 
@@ -895,6 +896,7 @@ app.delete("/api/delete-video-slot", verifyToken, async (req, res) => {
     });
   }
 });
+
 
 // Start Server
 app.listen(3000, () => {
