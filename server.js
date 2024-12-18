@@ -366,7 +366,7 @@ app.post("/api/check-password", async (req, res) => {
   try {
       // Query the database for user details
       const result = await pool.query(
-          "SELECT password, status FROM auth WHERE userid = $1",
+          "SELECT password, username, status FROM auth WHERE userid = $1",
           [userid]
       );
 
@@ -377,7 +377,7 @@ app.post("/api/check-password", async (req, res) => {
           });
       }
 
-      const { password: storedPassword } = result.rows[0];
+      const { password: storedPassword, username } = result.rows[0];
 
       // Verify the password
       if (password !== storedPassword) {
@@ -396,11 +396,13 @@ app.post("/api/check-password", async (req, res) => {
           [token, userid]
       );
 
-      // Respond with success and the token
+      // Respond with success, token, and additional user details
       res.json({
           success: true,
           message: "Password is correct. User logged in.",
           token,
+          userid,
+          username,
       });
   } catch (err) {
       console.error("Error during password check:", err);
@@ -410,6 +412,8 @@ app.post("/api/check-password", async (req, res) => {
       });
   }
 });
+
+
 
 //log-out
 app.post("/api/logout", async (req, res) => {
