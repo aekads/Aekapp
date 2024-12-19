@@ -524,13 +524,19 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
           WHEN d.ifsecondscreenispresentondevice = 1 THEN 'single'
           WHEN d.ifsecondscreenispresentondevice = 2 THEN 'dual'
           ELSE 'unknown'
-        END AS screentype
+        END AS screentype,
+        c.status,
+        c.updated_at
       FROM 
         screens s
       INNER JOIN 
         device_configs d 
       ON 
         s.screenid = CAST(d.client_name AS INTEGER)
+      LEFT JOIN
+        client_statuses c
+      ON 
+        s.screenid = CAST(c.client_name AS INTEGER)
       WHERE 
         s.screenid = ANY($1::int[])
     `;
@@ -551,6 +557,7 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error." });
   }
 });
+
 
 app.post("/api/get-screen-data", verifyToken, async (req, res) => {
   const { userid } = req.body;
