@@ -107,31 +107,47 @@ app.post(
   upload.single("video"),
   async (req, res) => {
     try {
+      console.log("Received a request to upload a video");
+
+      // Log request details
+      console.log("Request user:", req.user);
+      console.log("Uploaded file info:", req.file);
+
       // Validate file
       if (!req.file) {
+        console.log("No video file provided in the request.");
         return res
           .status(400)
           .json({ success: false, message: "No video file uploaded." });
       }
 
       // Upload video to Cloudinary
+      console.log("Uploading video to Cloudinary...");
       const result = await cloudinary.uploader.upload(req.file.path, {
         resource_type: "video", // Ensure the file is treated as a video
         folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
       });
+      console.log("Cloudinary upload result:", result);
 
       const videoUrl = result.secure_url;
 
+      // Log video URL
+      console.log("Video URL from Cloudinary:", videoUrl);
+
       // Save video details to the PostgreSQL database
+      console.log("Saving video details to the database...");
       const query = `
           INSERT INTO video_uploads (userid, video_url)
           VALUES ($1, $2) RETURNING *;
       `;
+      console.log("Database query:", query);
 
       // Save with userid from the token (decoded in verifyToken)
       const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
+      console.log("Database save result:", dbResult.rows[0]);
 
       // Respond with success message and details
+      console.log("Video uploaded and saved successfully.");
       res.status(200).json({
         success: true,
         message: "Video uploaded and saved successfully!",
@@ -141,12 +157,10 @@ app.post(
       });
     } catch (err) {
       console.error("Error uploading video or saving to database:", err);
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: "Error uploading video or saving to database.",
-        });
+      res.status(500).json({
+        success: false,
+        message: "Error uploading video or saving to database.",
+      });
     }
   }
 );
