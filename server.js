@@ -104,74 +104,58 @@ const upload = multer({ storage });
 app.post(
   "/api/upload-video",
   verifyToken,
-  upload.array("videos", 10), // Accept up to 10 files with the field name "videos"
+  upload.single("video"),
   async (req, res) => {
     try {
-      console.log("Received a request to upload multiple videos");
+      console.log("Received a request to upload a video");
 
-      // Log request details
-      console.log("Request user:", req.user);
-      console.log("Uploaded files info:", req.files);
-
-      // Validate files
-      if (!req.files || req.files.length === 0) {
-        console.log("No video files provided in the request.");
+      if (!req.file) {
+        console.log("No video file provided in the request.");
         return res
           .status(400)
-          .json({ success: false, message: "No video files uploaded." });
+          .json({ success: false, message: "No video file uploaded." });
       }
 
-      // Prepare an array to store results
-      const uploadedVideos = [];
+      console.log("Uploading video to Cloudinary...");
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        resource_type: "video",
+        folder: "uploaded_videos",
+      });
 
-      // Process each file
-      for (const file of req.files) {
-        console.log(`Uploading video: ${file.originalname} to Cloudinary...`);
+      console.log("Cloudinary upload result:", result);
+      const videoUrl = result.secure_url;
 
-        // Upload each video to Cloudinary
-        const result = await cloudinary.uploader.upload(file.path, {
-          resource_type: "video", // Ensure the file is treated as a video
-          folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
-        });
-
-        console.log(`Cloudinary upload result for ${file.originalname}:`, result);
-
-        // Get the video URL
-        const videoUrl = result.secure_url;
-
-        // Save video details to the PostgreSQL database
-        console.log(`Saving video details for ${file.originalname} to the database...`);
-        const query = `
+      console.log("Saving video details to the database...");
+      const query = `
           INSERT INTO video_uploads (userid, video_url)
           VALUES ($1, $2) RETURNING *;
-        `;
-        const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
+      `;
+      const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
 
-        console.log(
-          `Database save result for ${file.originalname}:`,
-          dbResult.rows[0]
-        );
+      console.log("Database save result:", dbResult.rows[0]);
 
-        // Add the saved video data to the results array
-        uploadedVideos.push(dbResult.rows[0]);
-      }
+      // Cleanup temporary file
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error("Error deleting temporary file:", err);
+      });
 
-      // Respond with success message and details
-      console.log("All videos uploaded and saved successfully.");
       res.status(200).json({
         success: true,
-        message: "Videos uploaded and saved successfully!",
-        data: uploadedVideos, // Include all saved database records in the response
+        message: "Video uploaded and saved successfully!",
+        data: {
+          video_data: dbResult.rows[0],
+        },
       });
     } catch (err) {
-      console.error("Error uploading videos or saving to database:", err);
+      console.error("Error uploading video or saving to database:", err);
       res.status(500).json({
         success: false,
-        message: "Error uploading videos or saving to database.",
+        message: "Error uploading video or saving to database.",
       });
     }
   }
 );
+
 
 
 // Registration Page
