@@ -109,16 +109,22 @@ app.post(
     try {
       // Validate file
       if (!req.file) {
+        console.log("No video file uploaded.");
         return res
           .status(400)
           .json({ success: false, message: "No video file uploaded." });
       }
+
+      // Log file details
+      console.log("Received video file:", req.file);
 
       // Upload video to Cloudinary
       const result = await cloudinary.uploader.upload(req.file.path, {
         resource_type: "video", // Ensure the file is treated as a video
         folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
       });
+
+      console.log("Cloudinary upload result:", result);
 
       const videoUrl = result.secure_url;
 
@@ -128,8 +134,12 @@ app.post(
           VALUES ($1, $2) RETURNING *;
       `;
 
+      console.log("Saving video details to the database...");
+
       // Save with userid from the token (decoded in verifyToken)
       const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
+
+      console.log("Database save result:", dbResult.rows[0]);
 
       // Respond with success message and details
       res.status(200).json({
