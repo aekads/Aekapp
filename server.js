@@ -4,6 +4,7 @@ const { Pool } = require("pg");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = "auth_token@321456987";
+const fs = require("fs"); // To clean up temporary files
 
 const app = express();
 const pool = new Pool({
@@ -96,7 +97,19 @@ cloudinary.config({
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({});
-const upload = multer({ storage });
+// const upload = multer({ storage });
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 }, // Max 10 MB
+  fileFilter: (req, file, cb) => {
+    // Accept only video files
+    if (!file.mimetype.startsWith("video/")) {
+      return cb(new Error("Only video files are allowed!"));
+    }
+    cb(null, true);
+  },
+  dest: "uploads/", // Temporary storage location
+});
+
 
 // Video upload API
 // Video upload API with token validation
@@ -106,27 +119,35 @@ app.post(
   verifyToken,
   upload.single("video"),
   async (req, res) => {
+    console.log("Headers:", req.headers);
+    console.log("Body:", req.body);
+
     try {
       // Validate file
       if (!req.file) {
-        console.log("No video file uploaded.");
-        return res
-          .status(400)
-          .json({ success: false, message: "No video file uploaded." });
+        return res.status(400).json({
+          success: false,
+          message: "No video file uploaded.",
+        });
       }
 
-      // Log file details
-      console.log("Received video file:", req.file);
+      console.log("File:", req.file);
 
       // Upload video to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        resource_type: "video", // Ensure the file is treated as a video
-        folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
-      });
+      const cloudinaryResponse = await cloudinary.uploader.upload(
+        req.file.path,
+        {
+          resource_type: "video", // Ensure the file is treated as a video
+          folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
+        }
+      );
 
-      console.log("Cloudinary upload result:", result);
+      const videoUrl = cloudinaryResponse.secure_url;
 
-      const videoUrl = result.secure_url;
+      // Clean up the local temporary file
+      fs.unlinkSync(req.file.path);
+
+      console.log("Cloudinary Response:", cloudinaryResponse);
 
       // Save video details to the PostgreSQL database
       const query = `
@@ -134,12 +155,10 @@ app.post(
           VALUES ($1, $2) RETURNING *;
       `;
 
-      console.log("Saving video details to the database...");
-
       // Save with userid from the token (decoded in verifyToken)
       const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
 
-      console.log("Database save result:", dbResult.rows[0]);
+      console.log("Database Result:", dbResult.rows[0]);
 
       // Respond with success message and details
       res.status(200).json({
@@ -151,17 +170,39 @@ app.post(
       });
     } catch (err) {
       console.error("Error uploading video or saving to database:", err);
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: "Error uploading video or saving to database.",
-        });
+
+      // Clean up the local temporary file if an error occurs
+      if (req.file && req.file.path) {
+        fs.unlinkSync(req.file.path);
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Error uploading video or saving to database.",
+        error: err.message,
+      });
     }
   }
 );
 
-// Registration Page
+// Middleware to handle Multer file upload errors
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        success: false,
+        message: "File size exceeds 10 MB limit.",
+      });
+    }
+  } else if (err.message === "Only video files are allowed!") {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+  next(err);
+});
+// Registration Page                                                              
 // **GET /register**
 app.get("/register", async (req, res) => {
   try {
