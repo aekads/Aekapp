@@ -104,66 +104,75 @@ const upload = multer({ storage });
 app.post(
   "/api/upload-video",
   verifyToken,
-  upload.single("video"),
+  upload.array("videos", 10), // Accept up to 10 files with the field name "videos"
   async (req, res) => {
     try {
-      console.log("Received a request to upload a video");
+      console.log("Received a request to upload multiple videos");
 
       // Log request details
       console.log("Request user:", req.user);
-      console.log("Uploaded file info:", req.file);
+      console.log("Uploaded files info:", req.files);
 
-      // Validate file
-      if (!req.file) {
-        console.log("No video file provided in the request.");
+      // Validate files
+      if (!req.files || req.files.length === 0) {
+        console.log("No video files provided in the request.");
         return res
           .status(400)
-          .json({ success: false, message: "No video file uploaded." });
+          .json({ success: false, message: "No video files uploaded." });
       }
 
-      // Upload video to Cloudinary
-      console.log("Uploading video to Cloudinary...");
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        resource_type: "video", // Ensure the file is treated as a video
-        folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
-      });
-      console.log("Cloudinary upload result:", result);
+      // Prepare an array to store results
+      const uploadedVideos = [];
 
-      const videoUrl = result.secure_url;
+      // Process each file
+      for (const file of req.files) {
+        console.log(`Uploading video: ${file.originalname} to Cloudinary...`);
 
-      // Log video URL
-      console.log("Video URL from Cloudinary:", videoUrl);
+        // Upload each video to Cloudinary
+        const result = await cloudinary.uploader.upload(file.path, {
+          resource_type: "video", // Ensure the file is treated as a video
+          folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
+        });
 
-      // Save video details to the PostgreSQL database
-      console.log("Saving video details to the database...");
-      const query = `
+        console.log(`Cloudinary upload result for ${file.originalname}:`, result);
+
+        // Get the video URL
+        const videoUrl = result.secure_url;
+
+        // Save video details to the PostgreSQL database
+        console.log(`Saving video details for ${file.originalname} to the database...`);
+        const query = `
           INSERT INTO video_uploads (userid, video_url)
           VALUES ($1, $2) RETURNING *;
-      `;
-      console.log("Database query:", query);
+        `;
+        const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
 
-      // Save with userid from the token (decoded in verifyToken)
-      const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
-      console.log("Database save result:", dbResult.rows[0]);
+        console.log(
+          `Database save result for ${file.originalname}:`,
+          dbResult.rows[0]
+        );
+
+        // Add the saved video data to the results array
+        uploadedVideos.push(dbResult.rows[0]);
+      }
 
       // Respond with success message and details
-      console.log("Video uploaded and saved successfully.");
+      console.log("All videos uploaded and saved successfully.");
       res.status(200).json({
         success: true,
-        message: "Video uploaded and saved successfully!",
-        data: {
-          video_data: dbResult.rows[0], // Include saved database record in the response
-        },
+        message: "Videos uploaded and saved successfully!",
+        data: uploadedVideos, // Include all saved database records in the response
       });
     } catch (err) {
-      console.error("Error uploading video or saving to database:", err);
+      console.error("Error uploading videos or saving to database:", err);
       res.status(500).json({
         success: false,
-        message: "Error uploading video or saving to database.",
+        message: "Error uploading videos or saving to database.",
       });
     }
   }
 );
+
 
 // Registration Page
 // **GET /register**
