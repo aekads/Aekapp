@@ -817,7 +817,7 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
 });
 
 // Delete Video Slot API
-app.delete("/api/delete-video-slot", verifyToken, async (req, res) => {
+app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
   const { userid, slot_number } = req.body;
 
   if (req.user.userid !== userid) {
@@ -913,6 +913,7 @@ app.delete("/api/delete-video-slot", verifyToken, async (req, res) => {
     });
   }
 });
+
 
 
 // Start Server
