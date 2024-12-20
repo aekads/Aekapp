@@ -107,56 +107,49 @@ app.post(
   upload.single("video"),
   async (req, res) => {
     try {
-      console.log("Received a request to upload a video");
-
+      // Validate file
       if (!req.file) {
-        console.log("No video file provided in the request.");
         return res
           .status(400)
           .json({ success: false, message: "No video file uploaded." });
       }
 
-      console.log("Uploading video to Cloudinary...");
+      // Upload video to Cloudinary
       const result = await cloudinary.uploader.upload(req.file.path, {
-        resource_type: "video",
-        folder: "uploaded_videos",
+        resource_type: "video", // Ensure the file is treated as a video
+        folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
       });
 
-      console.log("Cloudinary upload result:", result);
       const videoUrl = result.secure_url;
 
-      console.log("Saving video details to the database...");
+      // Save video details to the PostgreSQL database
       const query = `
           INSERT INTO video_uploads (userid, video_url)
           VALUES ($1, $2) RETURNING *;
       `;
+
+      // Save with userid from the token (decoded in verifyToken)
       const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
 
-      console.log("Database save result:", dbResult.rows[0]);
-
-      // Cleanup temporary file
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error("Error deleting temporary file:", err);
-      });
-
+      // Respond with success message and details
       res.status(200).json({
         success: true,
         message: "Video uploaded and saved successfully!",
         data: {
-          video_data: dbResult.rows[0],
+          video_data: dbResult.rows[0], // Include saved database record in the response
         },
       });
     } catch (err) {
       console.error("Error uploading video or saving to database:", err);
-      res.status(500).json({
-        success: false,
-        message: "Error uploading video or saving to database.",
-      });
+      res
+        .status(500)
+        .json({
+          success: false,
+          message: "Error uploading video or saving to database.",
+        });
     }
   }
 );
-
-
 
 // Registration Page
 // **GET /register**
@@ -892,7 +885,7 @@ app.delete("/api/delete-video-slot", verifyToken, async (req, res) => {
 
       updatedScreens.push({
         id: updateResult.rows[0].screenid,
-        [slot_number]: JSON.parse(updateResult.rows[0][slot_number]),
+        [slot_number]: JSON.parse(updateResult.rows[0][slot_number]),                 
       });
     }
 
@@ -915,4 +908,5 @@ app.delete("/api/delete-video-slot", verifyToken, async (req, res) => {
 // Start Server
 app.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
-});
+});                                                                              
+                                                      
