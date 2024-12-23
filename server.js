@@ -810,20 +810,8 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
     // Process each screen ID and update the slot
     const updatedScreens = [];
     for (const row of existingDataResult.rows) {
-      let existingSlotData;
-
-      // Parse the slot data or initialize as an empty array
-      try {
-        existingSlotData = row[slot_number] ? JSON.parse(row[slot_number]) : [];
-      } catch (error) {
-        existingSlotData = []; // Handle invalid JSON data
-      }
-
-      if (!Array.isArray(existingSlotData)) {
-        existingSlotData = []; // Ensure it's an array
-      }
-
-      existingSlotData.push(newVideoData); // Add new video data to the array
+      // Replace the existing slot data with the new data
+      const updatedSlotData = [newVideoData];
 
       // Update the database
       const updateQuery = `
@@ -833,7 +821,7 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
               RETURNING screenid, ${slot_number};
           `;
       const updateResult = await pool.query(updateQuery, [
-        JSON.stringify(existingSlotData),
+        JSON.stringify(updatedSlotData),
         row.screenid,
       ]);
       updatedScreens.push({
