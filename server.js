@@ -311,6 +311,20 @@ app.get("/login", async (req, res) => {
 
 
 
+app.post("/api/off", async (req, res) => {
+  try {
+    console.log("Request received:", req.body);
+
+    // Directly send the success response
+    res.json({ success: true, message: "User found." });
+  } catch (error) {
+    console.error("Error occurred:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error." });
+  }
+});
+
+
+
 
 
 // Function to generate 4-digit PIN
