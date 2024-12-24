@@ -311,17 +311,13 @@ app.get("/login", async (req, res) => {
 
 
 
-app.post("/api/off", async (req, res) => {
-  try {
-    console.log("Request received:", req.body);
+app.get("/api/off", (req, res) => {
+  console.log("GET request received");
 
-    // Directly send the success response
-    res.json({ success: true, message: "User found." });
-  } catch (error) {
-    console.error("Error occurred:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error." });
-  }
+  // Directly send the static response
+  res.json({ success: true, message: "hello sahas." });
 });
+
 
 
 
