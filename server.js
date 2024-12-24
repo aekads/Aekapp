@@ -645,16 +645,19 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
         });
     }
 
+    // Modify the query to fetch data from the screen_proposal table
     const screenDetailsQuery = `
       SELECT 
-        s.screenid,
-        s.screenname,
-        s.slot9,
-        s.slot10
+        sp.screenid,
+        screenname,
+        sp.slot9,
+        sp.slot9_clientname,
+        sp.slot10,
+        sp.slot10_clientname
       FROM 
-        screens s
+        public.screen_proposal sp
       WHERE 
-        s.screenid = ANY($1::int[])
+        sp.screenid = ANY($1::int[])
     `;
 
     const screenDetailsResult = await pool.query(screenDetailsQuery, [
@@ -662,7 +665,20 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
     ]);
 
     if (screenDetailsResult.rows.length > 0) {
-      res.json({ success: true, screensData: screenDetailsResult.rows });
+      // Map the result to rename fields
+      const screensData = screenDetailsResult.rows.map(row => ({
+        screenid: row.screenid,
+        screenname: row.screenname,
+        slot9: row.slot9,
+        status_slot09: row.slot9_clientname, // Renamed field
+        slot10: row.slot10,
+        status_slot10: row.slot10_clientname, // Renamed field
+      }));
+
+      res.json({
+        success: true,
+        screensData,
+      });
     } else {
       res
         .status(404)
@@ -673,6 +689,7 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error." });
   }
 });
+
 
 // API to set video data in specified slot for all screenids of a user
 // API to set video data in slot9 or slot10 for all screenids of a user         
@@ -769,10 +786,10 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
 
     // Fetch screen IDs associated with the user
     const userQuery = `
-          SELECT screenids
-          FROM public.auth
-          WHERE userid = $1
-      `;
+      SELECT screenids
+      FROM public.auth
+      WHERE userid = $1
+    `;
     const userResult = await pool.query(userQuery, [userid]);
 
     if (userResult.rows.length === 0) {
@@ -791,14 +808,6 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
         });
     }
 
-    // Fetch the existing data for slot_number
-    const existingDataQuery = `
-          SELECT screenid, ${slot_number}
-          FROM public.screens
-          WHERE screenid = ANY($1::int[])
-      `;
-    const existingDataResult = await pool.query(existingDataQuery, [screenids]);
-
     // Prepare the new video data to be added
     const newVideoData = {
       id: video_Data.id,
@@ -807,34 +816,53 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
       userid: video_Data.userid,
     };
 
-    // Process each screen ID and update the slot
-    const updatedScreens = [];
-    for (const row of existingDataResult.rows) {
-      // Replace the existing slot data with the new data
-      const updatedSlotData = [newVideoData];
+    // Prepare the values for the slots
+    const slotValue = JSON.stringify([newVideoData]);
+    const slotClientName = "pending"; // Status for client slot
 
-      // Update the database
-      const updateQuery = `
-              UPDATE public.screens
-              SET ${slot_number} = $1
-              WHERE screenid = $2
-              RETURNING screenid, ${slot_number};
-          `;
-      const updateResult = await pool.query(updateQuery, [
-        JSON.stringify(updatedSlotData),
-        row.screenid,
+    // Iterate through each screenid and update the customer_screens_data table
+    const updatedScreens = [];
+    for (const screenid of screenids) {
+      let customerScreensDataQuery;
+
+      // Handle slot9 and slot10 explicitly in the query
+      if (slot_number === "slot9") {
+        customerScreensDataQuery = `
+          INSERT INTO public.screen_proposal (screenid, slot9, slot9_clientname)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (screenid) DO UPDATE
+          SET slot9 = COALESCE(EXCLUDED.slot9, screen_proposal.slot9),
+              slot9_clientname = COALESCE(EXCLUDED.slot9_clientname, screen_proposal.slot9_clientname)
+          RETURNING screenid, slot9, slot9_clientname;
+        `;
+      } else if (slot_number === "slot10") {
+        customerScreensDataQuery = `
+          INSERT INTO public.screen_proposal (screenid, slot10, slot10_clientname)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (screenid) DO UPDATE
+          SET slot10 = COALESCE(EXCLUDED.slot10, screen_proposal.slot10),
+              slot10_clientname = COALESCE(EXCLUDED.slot10_clientname, screen_proposal.slot10_clientname)
+          RETURNING screenid, slot10, slot10_clientname;
+        `;
+      }
+      
+      // Execute the query
+      const customerScreensResult = await pool.query(customerScreensDataQuery, [
+        screenid, // $1
+        slotValue, // $2
+        slotClientName, // $3
       ]);
-      updatedScreens.push({
-        id: updateResult.rows[0].screenid,
-        [slot_number]: JSON.parse(updateResult.rows[0][slot_number]),
-      });
+      
+
+      // Collect the updated screen data
+      updatedScreens.push(customerScreensResult.rows[0]);
     }
 
     // Respond with success and updated rows
     res.status(200).json({
       success: true,
       message: "Video data successfully set in the specified slot.",
-      [slot_number]: updatedScreens,
+      updatedScreens,
     });
   } catch (err) {
     console.error("Error setting video data in slot:", err);
@@ -844,6 +872,10 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
     });
   }
 });
+
+
+
+
 
 // Delete Video Slot API
 app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
@@ -899,7 +931,7 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
     // Fetch existing data for the specified slot
     const existingDataQuery = `
           SELECT screenid, ${slot_number}
-          FROM public.screens
+          FROM public.screen_proposal 
           WHERE screenid = ANY($1::int[])
       `;
     const existingDataResult = await pool.query(existingDataQuery, [screenids]);
@@ -907,24 +939,30 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
     // Process each screen ID and delete the slot data
     const updatedScreens = [];
     for (const row of existingDataResult.rows) {
-      // Clear the slot data (set to an empty array or null, depending on requirements)
-      const updatedSlotData = JSON.stringify([]); // Set to an empty array
+      // Determine fields to update based on slot_number
+      let fieldsToUpdate = `${slot_number} = $1`;
+      const values = [JSON.stringify([]), row.screenid]; // Clear slot data
+      
+      if (slot_number === "slot9") {
+        fieldsToUpdate += ", slot9_clientname = $2";
+        values.splice(1, 0, null); // Insert `null` for slot9_clientname
+      } else if (slot_number === "slot10") {
+        fieldsToUpdate += ", slot10_clientname = $2";
+        values.splice(1, 0, null); // Insert `null` for slot10_clientname
+      }
 
       // Update the database
       const updateQuery = `
-              UPDATE public.screens
-              SET ${slot_number} = $1
-              WHERE screenid = $2
+              UPDATE public.screen_proposal 
+              SET ${fieldsToUpdate}
+              WHERE screenid = $3
               RETURNING screenid, ${slot_number};
           `;
-      const updateResult = await pool.query(updateQuery, [
-        updatedSlotData,
-        row.screenid,
-      ]);
+      const updateResult = await pool.query(updateQuery, values);
 
       updatedScreens.push({
         id: updateResult.rows[0].screenid,
-        [slot_number]: JSON.parse(updateResult.rows[0][slot_number]),                 
+        // [slot_number]: JSON.parse(updateResult.rows[0][slot_number]),                 
       });
     }
 
@@ -942,6 +980,7 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
     });
   }
 });
+
 
 
 
