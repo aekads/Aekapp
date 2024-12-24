@@ -434,8 +434,12 @@ app.post("/api/check-user", async (req, res) => {
 app.post("/api/check-password", async (req, res) => {
   const { userid, password } = req.body;
 
+  console.log("Incoming request to /api/check-password"); // Log initial request
+  console.log("Request body:", { userid, password }); // Log the request body (ensure sensitive data is handled carefully)
+
   // Validate input
   if (!userid || !password) {
+      console.log("Validation failed: Missing userid or password");
       return res.status(400).json({
           success: false,
           message: "UserID and Password are required.",
@@ -443,37 +447,51 @@ app.post("/api/check-password", async (req, res) => {
   }
 
   try {
+      console.log("Querying database for user details..."); // Log before querying the database
+
       // Query the database for user details
       const result = await pool.query(
-          "SELECT password, username, status FROM auth WHERE userid = $1",
+          "SELECT password, username, status, role FROM auth WHERE userid = $1",
           [userid]
       );
 
+      console.log("Database query result:", result.rows); // Log the result from the database
+
       if (result.rowCount === 0) {
+          console.log("UserID not found in the database");
           return res.status(404).json({
               success: false,
               message: "UserID not found.",
           });
       }
 
-      const { password: storedPassword, username } = result.rows[0];
+      const { password: storedPassword, username, role } = result.rows[0];
+
+      console.log("Stored password retrieved:", storedPassword); // Log stored password
+      console.log("Role and username:", { role, username }); // Log role and username
 
       // Verify the password
       if (password !== storedPassword) {
+          console.log("Password verification failed");
           return res.status(401).json({
               success: false,
               message: "Incorrect password.",
           });
       }
 
+      console.log("Password verified successfully"); // Log successful verification
+
       // Generate a JWT token
       const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "1h" });
+      console.log("Generated JWT token:", token); // Log generated token
 
       // Update the user's status to 1 and save the token
+      console.log("Updating user status and token in the database...");
       await pool.query(
           "UPDATE auth SET status = 1, token = $1 WHERE userid = $2",
           [token, userid]
       );
+      console.log("User status updated successfully"); // Log update success
 
       // Respond with success, token, and additional user details
       res.json({
@@ -482,16 +500,17 @@ app.post("/api/check-password", async (req, res) => {
           token,
           userid,
           username,
+          role,
       });
+      console.log("Response sent successfully"); // Log response success
   } catch (err) {
-      console.error("Error during password check:", err);
+      console.error("Error during password check:", err); // Log error details
       res.status(500).json({
           success: false,
           message: "Internal Server Error.",
       });
   }
 });
-
 
 
 //log-out
