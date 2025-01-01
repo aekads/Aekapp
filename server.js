@@ -908,96 +908,96 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
 
 
 
-// Delete Video Slot API
-// app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
-//   const { userid, slot_number } = req.body;
+Delete Video Slot API
+app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
+  const { userid, slot_number } = req.body;
 
-//   if (req.user.userid !== userid) {
-//     return res
-//       .status(403)
-//       .json({ success: false, message: "Unauthorized access." });
-//   }
+  if (req.user.userid !== userid) {
+    return res
+      .status(403)
+      .json({ success: false, message: "Unauthorized access." });
+  }
 
-//   if (!userid || !slot_number || !["slot9", "slot10"].includes(slot_number)) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "Invalid input. User ID and valid slot number are required.",
-//     });
-//   }
+  if (!userid || !slot_number || !["slot9", "slot10"].includes(slot_number)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid input. User ID and valid slot number are required.",
+    });
+  }
 
-//   try {
-//     const userQuery = `
-//       SELECT screenids FROM public.auth WHERE userid = $1
-//     `;
-//     const userResult = await pool.query(userQuery, [userid]);
+  try {
+    const userQuery = `
+      SELECT screenids FROM public.auth WHERE userid = $1
+    `;
+    const userResult = await pool.query(userQuery, [userid]);
 
-//     if (userResult.rows.length === 0) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "User not found." });
-//     }
+    if (userResult.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    }
 
-//     const screenids = userResult.rows[0].screenids;
-//     if (!Array.isArray(screenids) || screenids.length === 0) {
-//       return res
-//         .status(404)
-//         .json({
-//           success: false,
-//           message: "No screens associated with this user.",
-//         });
-//     }
+    const screenids = userResult.rows[0].screenids;
+    if (!Array.isArray(screenids) || screenids.length === 0) {
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "No screens associated with this user.",
+        });
+    }
 
-//     const existingDataQuery = `
-//       SELECT screenid, ${slot_number} FROM public.screen_proposal 
-//       WHERE screenid = ANY($1::int[])
-//     `;
-//     const existingDataResult = await pool.query(existingDataQuery, [screenids]);
+    const existingDataQuery = `
+      SELECT screenid, ${slot_number} FROM public.screen_proposal 
+      WHERE screenid = ANY($1::int[])
+    `;
+    const existingDataResult = await pool.query(existingDataQuery, [screenids]);
 
-//     if (existingDataResult.rows.length === 0) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "No data found for the specified slot." });
-//     }
+    if (existingDataResult.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No data found for the specified slot." });
+    }
 
-//     const updatedScreens = [];
-//     for (const row of existingDataResult.rows) {
-//       const values = [null, null, row.screenid];
-//       const updateQuery = `
-//         WITH 
-//         update_table1 AS (
-//           UPDATE public.screen_proposal
-//           SET ${slot_number} = $1, ${slot_number}_clientname = $2
-//           WHERE screenid = $3
-//           RETURNING screenid
-//         ),
-//         update_table2 AS (
-//           UPDATE public.screens
-//           SET ${slot_number} = $1
-//           WHERE screenid = $3
-//           RETURNING screenid
-//         )
-//         SELECT * FROM update_table1
-//         UNION ALL
-//         SELECT * FROM update_table2;
-//       `;
+    const updatedScreens = [];
+    for (const row of existingDataResult.rows) {
+      const values = [null, null, row.screenid];
+      const updateQuery = `
+        WITH 
+        update_table1 AS (
+          UPDATE public.screen_proposal
+          SET ${slot_number} = $1, ${slot_number}_clientname = $2
+          WHERE screenid = $3
+          RETURNING screenid
+        ),
+        update_table2 AS (
+          UPDATE public.screens
+          SET ${slot_number} = $1
+          WHERE screenid = $3
+          RETURNING screenid
+        )
+        SELECT * FROM update_table1
+        UNION ALL
+        SELECT * FROM update_table2;
+      `;
 
-//       const updateResult = await pool.query(updateQuery, values);
-//       updatedScreens.push(...updateResult.rows.map((row) => row.screenid));
-//     }
+      const updateResult = await pool.query(updateQuery, values);
+      updatedScreens.push(...updateResult.rows.map((row) => row.screenid));
+    }
 
-//     res.status(200).json({
-//       success: true,
-//       message: "Video data successfully deleted from the specified slot.",
-//       updatedScreens,
-//     });
-//   } catch (err) {
-//     console.error("Error deleting video data from slot:", err);
-//     res.status(500).json({
-//       success: false,
-//       message: "Internal Server Error.",
-//     });
-//   }
-// });
+    res.status(200).json({
+      success: true,
+      message: "Video data successfully deleted from the specified slot.",
+      updatedScreens,
+    });
+  } catch (err) {
+    console.error("Error deleting video data from slot:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error.",
+    });
+  }
+});
 
 
 
