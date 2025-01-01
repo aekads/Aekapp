@@ -14,9 +14,9 @@ const pool = new Pool({
   password: "AekAds@24",
   port: 5432,
 });
-
-
-
+ 
+                                 
+            
 
 // Nodemailer Configuration
 const transporter = nodemailer.createTransport({
@@ -112,7 +112,7 @@ const upload = multer({
 
 
 // Video upload API
-// Video upload API with token validation
+// Video upload API with token validation                                         
 // Video upload API with token validation
 app.post(
   "/api/upload-video",
@@ -496,7 +496,7 @@ app.post("/api/check-password", async (req, res) => {
       // Respond with success, token, and additional user details
       res.json({
           success: true,
-          message: "Password is correct. User logged in.",
+          message: "Password is correct. User logged in.",                      
           token,
           userid,
           username,
@@ -504,13 +504,13 @@ app.post("/api/check-password", async (req, res) => {
       });
       console.log("Response sent successfully"); // Log response success
   } catch (err) {
-      console.error("Error during password check:", err); // Log error details
+      console.error("Error during password check:", err); // Log error details   
       res.status(500).json({
           success: false,
           message: "Internal Server Error.",
       });
   }
-});
+});                                                                                                                               
 
 
 //log-out
@@ -839,14 +839,16 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
 
     // Prepare the new video data to be added
     const newVideoData = {
-      id: video_Data.id,
+      video_id: video_Data.id,
+      video_type : `male`,
+      age : `19-14`,
       video_url: video_Data.video_url,
-      uploaded_at: new Date().toISOString(),
-      userid: video_Data.userid,
-    };
+      video_client_name:  video_Data.userid,
+      video_tag: video_Data.userid,
+    };   
 
     // Prepare the values for the slots
-    const slotValue = JSON.stringify([newVideoData]);
+    const slotValue = JSON.stringify([newVideoData,newVideoData,newVideoData,newVideoData]);
     const slotClientName = "pending"; // Status for client slot
 
     // Iterate through each screenid and update the customer_screens_data table
