@@ -918,29 +918,17 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
       .json({ success: false, message: "Unauthorized access." });
   }
 
+  if (!userid || !slot_number || !["slot9", "slot10"].includes(slot_number)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid input. User ID and valid slot number are required.",
+    });
+  }
+
   try {
-    // Validate input
-    if (!userid || !slot_number) {
-      return res.status(400).json({
-        success: false,
-        message: "User ID and slot number are required.",
-      });
-    }
-
-    // Ensure the slot number is either slot9 or slot10
-    if (slot_number !== "slot9" && slot_number !== "slot10") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid slot number. Only 'slot9' and 'slot10' are allowed.",
-      });
-    }
-
-    // Fetch screen IDs associated with the user
     const userQuery = `
-          SELECT screenids
-          FROM public.auth
-          WHERE userid = $1
-      `;
+      SELECT screenids FROM public.auth WHERE userid = $1
+    `;
     const userResult = await pool.query(userQuery, [userid]);
 
     if (userResult.rows.length === 0) {
@@ -959,67 +947,48 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
         });
     }
 
-    // Fetch existing data for the specified slot
     const existingDataQuery = `
-          SELECT screenid, ${slot_number}
-          FROM public.screen_proposal 
-          WHERE screenid = ANY($1::int[])
-      `;
+      SELECT screenid, ${slot_number} FROM public.screen_proposal 
+      WHERE screenid = ANY($1::int[])
+    `;
     const existingDataResult = await pool.query(existingDataQuery, [screenids]);
 
-    // Process each screen ID and delete the slot data
-    const updatedScreens = [];
-    for (const row of existingDataResult.rows) {
-      // Determine fields to update based on slot_number
-      let fieldsToUpdate = `${slot_number} = $1`;
-      const values = [JSON.stringify([]), row.screenid]; // Clear slot data
-      
-      if (slot_number === "slot9") {
-        fieldsToUpdate += ", slot9_clientname = $2";
-        values.splice(1, 0, null); // Insert `null` for slot9_clientname
-      } else if (slot_number === "slot10") {
-        fieldsToUpdate += ", slot10_clientname = $2";
-        values.splice(1, 0, null); // Insert `null` for slot10_clientname
-      }
-
-     let fieldsToUpdate2 = `${slot_number} = $1`;
-      const values = [JSON.stringify([]), row.screenid]; // Clear slot data
-      
-    
-
-      
-      // Update the database
-      const updateQuery =  `
-  WITH 
-  update_table1 AS (
-    UPDATE public.screen_proposal
-    SET ${fieldsToUpdate}
-    WHERE screenid = $3
-    RETURNING screenid, ${slot_number}
-  ),
-  update_table2 AS (
-    UPDATE public.screens
-    SET ${fieldsToUpdate2}
-    WHERE screenid = $3
-    RETURNING screenid, ${slot_number}
-  )
-  SELECT * FROM update_table1
-  UNION ALL
-  SELECT * FROM update_table2;
-`;;
-      const updateResult = await pool.query(updateQuery, values);
-
-      updatedScreens.push({
-        id: updateResult.rows[0].screenid,
-        // [slot_number]: JSON.parse(updateResult.rows[0][slot_number]),                 
-      });
+    if (existingDataResult.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No data found for the specified slot." });
     }
 
-    // Respond with success and updated rows
+    const updatedScreens = [];
+    for (const row of existingDataResult.rows) {
+      const values = [JSON.stringify([]), null, row.screenid];
+      const updateQuery = `
+        WITH 
+        update_table1 AS (
+          UPDATE public.screen_proposal
+          SET ${slot_number} = $1, ${slot_number}_clientname = $2
+          WHERE screenid = $3
+          RETURNING screenid
+        ),
+        update_table2 AS (
+          UPDATE public.screens
+          SET ${slot_number} = $1
+          WHERE screenid = $3
+          RETURNING screenid
+        )
+        SELECT * FROM update_table1
+        UNION ALL
+        SELECT * FROM update_table2;
+      `;
+
+      const updateResult = await pool.query(updateQuery, values);
+      updatedScreens.push(...updateResult.rows.map((row) => row.screenid));
+    }
+
     res.status(200).json({
       success: true,
       message: "Video data successfully deleted from the specified slot.",
-      [slot_number]: updatedScreens,
+      updatedScreens,
     });
   } catch (err) {
     console.error("Error deleting video data from slot:", err);
