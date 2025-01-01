@@ -966,14 +966,14 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
         WITH 
         update_table1 AS (
           UPDATE public.screen_proposal
-          SET ${slot_number} = $1, ${slot_number}_clientname = $2
-          WHERE screenid = $3
+          SET ${slot_number} = NULL, ${slot_number}_clientname = NULL
+          WHERE screenid = $1
           RETURNING screenid
         ),
         update_table2 AS (
           UPDATE public.screens
-          SET ${slot_number} = $1
-          WHERE screenid = $3
+          SET ${slot_number} = NULL
+          WHERE screenid = $1
           RETURNING screenid
         )
         SELECT * FROM update_table1
