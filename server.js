@@ -982,13 +982,31 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
         values.splice(1, 0, null); // Insert `null` for slot10_clientname
       }
 
+     let fieldsToUpdate2 = `${slot_number} = $1`;
+      const values = [JSON.stringify([]), row.screenid]; // Clear slot data
+      
+    
+
+      
       // Update the database
-      const updateQuery = `
-              UPDATE public.screen_proposal 
-              SET ${fieldsToUpdate}
-              WHERE screenid = $3
-              RETURNING screenid, ${slot_number};
-          `;
+      const updateQuery =  `
+  WITH 
+  update_table1 AS (
+    UPDATE public.screen_proposal
+    SET ${fieldsToUpdate}
+    WHERE screenid = $3
+    RETURNING screenid, ${slot_number}
+  ),
+  update_table2 AS (
+    UPDATE public.screens
+    SET ${fieldsToUpdate2}
+    WHERE screenid = $3
+    RETURNING screenid, ${slot_number}
+  )
+  SELECT * FROM update_table1
+  UNION ALL
+  SELECT * FROM update_table2;
+`;;
       const updateResult = await pool.query(updateQuery, values);
 
       updatedScreens.push({
