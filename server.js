@@ -908,7 +908,7 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
 
 
 
-Delete Video Slot API
+// Delete Video Slot API
 app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
   const { userid, slot_number } = req.body;
 
