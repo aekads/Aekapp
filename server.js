@@ -402,6 +402,44 @@ app.post("/api/forgot_password", async (req, res) => {
 
 
 
+app.post('/api/update-device-token', async (req, res) => {
+  const { userid, device_token } = req.body;
+
+  try {
+    // Validate input
+    if (!userid || !device_token) {
+      return res.status(400).json({ message: 'userid and device_token are required.' });
+    }
+
+    // Check if the user exists
+    const userResult = await pool.query(
+      'SELECT userid FROM public.auth WHERE userid = $1',
+      [userid]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Update the device_token for the user
+    await pool.query(
+      'UPDATE public.auth SET device_token = $1 WHERE userid = $2',
+      [device_token, userid]
+    );
+
+    res.status(200).json({
+      message: 'Device token updated successfully.',
+      userid,
+      device_token,
+    });
+  } catch (error) {
+    console.error('Error updating device token:', error);
+    res.status(500).json({ message: 'Failed to update device token.' });
+  }
+});
+
+
+
 // User Check API
 app.post("/api/check-user", async (req, res) => {
   console.log("Request received:", req.body);
@@ -482,7 +520,8 @@ app.post("/api/check-password", async (req, res) => {
       console.log("Password verified successfully"); // Log successful verification
 
       // Generate a JWT token
-      const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "1h" });
+      const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "1d" });
+    
       console.log("Generated JWT token:", token); // Log generated token
 
       // Update the user's status to 1 and save the token
