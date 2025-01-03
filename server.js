@@ -32,6 +32,7 @@ const transporter = nodemailer.createTransport({
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const { config } = require("dotenv");
+const { log } = require("console");
 // Load environment variables
 config();
 
@@ -602,7 +603,6 @@ app.post("/api/logout", async (req, res) => {
 // API to Fetch Screen Details
 
 //Check if screen id add fetch screen with json web token and screen name       
-
 app.post("/api/get-screen-details", verifyToken, async (req, res) => {
   const { userid } = req.body;
 
@@ -620,7 +620,10 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
     }
 
     const userQuery = "SELECT screenids FROM public.auth WHERE userid = $1";
+    console.log("Executing query:", userQuery);
+
     const userResult = await pool.query(userQuery, [userid]);
+    console.log("userResult:", userResult.rows);
 
     if (userResult.rows.length === 0) {
       return res
@@ -628,8 +631,11 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
         .json({ success: false, message: "User not found." });
     }
 
-    const screenids = userResult.rows[0].screenids;
-    if (!Array.isArray(screenids) || screenids.length === 0) {
+    // Convert screenids from strings to integers
+    let screenids = userResult.rows[0].screenids.map(id => parseInt(id, 10));
+    console.log("Converted screenids:", screenids);
+
+    if (screenids.length === 0) {
       return res
         .status(404)
         .json({
@@ -637,6 +643,9 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
           message: "No screens associated with this user.",
         });
     }
+
+    // Log the screen ids and the query
+    console.log("Running screen details query with screenids:", screenids);
 
     const screenDetailsQuery = `
       SELECT 
@@ -660,12 +669,15 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
       ON 
         s.screenid = CAST(c.client_name AS INTEGER)
       WHERE 
-        s.screenid = ANY($1::int[])
+        s.screenid = ANY($1::int[])   -- Pass screenids here
     `;
+    console.log("Screen details query:", screenDetailsQuery);
 
-    const screenDetailsResult = await pool.query(screenDetailsQuery, [
-      screenids,
-    ]);
+    // Execute the query to get screen details
+    const screenDetailsResult = await pool.query(screenDetailsQuery, [screenids]);
+
+    // Log the result of the query
+    console.log("screenDetailsResult:", screenDetailsResult.rows);
 
     if (screenDetailsResult.rows.length > 0) {
       res.json({ success: true, screensData: screenDetailsResult.rows });
@@ -679,6 +691,18 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error." });
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 app.post("/api/get-screen-data", verifyToken, async (req, res) => {
@@ -697,8 +721,11 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
         .json({ success: false, message: "User ID is required." });
     }
 
-    // Fetch screen IDs associated with the user
-    const userQuery = "SELECT screenids FROM public.auth WHERE userid = $1";
+    const userQuery = `
+      SELECT screenids, slot9_url, slot9_status, slot10_url, slot10_status
+      FROM public.auth
+      WHERE userid = $1
+    `;
     const userResult = await pool.query(userQuery, [userid]);
 
     if (userResult.rows.length === 0) {
@@ -707,8 +734,7 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
         .json({ success: false, message: "User not found." });
     }
 
-    const screenids = userResult.rows[0].screenids;
-
+    const { screenids, slot9_url, slot9_status, slot10_url, slot10_status } = userResult.rows[0];
     if (!Array.isArray(screenids) || screenids.length === 0) {
       return res
         .status(404)
@@ -717,31 +743,33 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
           message: "No screens associated with this user.",
         });
     }
+    console.log("screenids", screenids);
 
-    // Modify the query to fetch data from the `auth` table
     const screenDetailsQuery = `
-      SELECT 
-        sp.screenids,
-        sp.slot9_url,
-        sp.slot9_status,
-        sp.slot10_url,
-        sp.slot10_status
-      FROM 
-        public.auth sp
-      WHERE 
-        sp.screenids && $1::text[] -- Use the array overlap operator for text arrays
+      SELECT screenid, screenname
+      FROM public.screens
+      WHERE screenid = ANY($1::int[])
     `;
-
-    const screenDetailsResult = await pool.query(screenDetailsQuery, [screenids]);
+    const screenDetailsResult = await pool.query(screenDetailsQuery, [
+      screenids,
+    ]);
 
     if (screenDetailsResult.rows.length > 0) {
-      // Map the result to rename fields
-      const screensData = screenDetailsResult.rows.map(row => ({
-        screenid: row.screenids,
-        slot9: row.slot9_url,
-        status_slot09: row.slot9_status,
-        slot10: row.slot10_url,
-        status_slot10: row.slot10_status,
+      // Create an object where screenid is the key and screenname is the value
+      const screenDetailsObject = {};
+      screenDetailsResult.rows.forEach(row => {
+        screenDetailsObject[row.screenid] = row.screenname;
+      });
+      console.log("screenDetailsObject contents:", screenDetailsObject);
+
+      // Now map the screenids to the corresponding screen data
+      const screensData = screenids.map(screenid => ({
+        screenid,
+        screenname: screenDetailsObject[screenid] || "Unknown Screen", // Default to "Unknown Screen" if not found
+        slot9_url,
+        slot9_clientname: slot9_status,
+        slot10_url,
+        slot10_clientname: slot10_status,
       }));
 
       res.json({
@@ -758,6 +786,201 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error." });
   }
 });
+
+
+
+
+
+// app.post("/api/get-screen-data", verifyToken, async (req, res) => {
+//   const { userid } = req.body;
+
+//   if (req.user.userid !== userid) {
+//     return res
+//       .status(403)
+//       .json({ success: false, message: "Unauthorized access." });
+//   }
+
+//   try {
+//     if (!userid) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "User ID is required." });
+//     }
+
+//     const userQuery = `
+//       SELECT screenids, slot9_url, slot9_status, slot10_url, slot10_status
+//       FROM public.auth
+//       WHERE userid = $1
+//     `;
+//     const userResult = await pool.query(userQuery, [userid]);
+
+//     if (userResult.rows.length === 0) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "User not found." });
+//     }
+
+//     const { screenids, slot9_url, slot9_status, slot10_url, slot10_status } = userResult.rows[0];
+//     if (!Array.isArray(screenids) || screenids.length === 0) {
+//       return res
+//         .status(404)
+//         .json({
+//           success: false,
+//           message: "No screens associated with this user.",
+//         });
+//     }
+// console.log("screenids",screenids);
+
+//     const screenDetailsQuery = `
+//       SELECT screenid, screenname
+//       FROM public.screens
+//       WHERE screenid = ANY($1::int[])
+//     `;
+//     const screenDetailsResult = await pool.query(screenDetailsQuery, [
+//       screenids,
+//     ]);
+
+//     if (screenDetailsResult.rows.length > 0) {
+//       // Create a Map where screenid is the key and screenname is the value
+//       const screenDetailsMap = new Map(
+//         screenDetailsResult.rows.map(row => [row.screenid, row.screenname])
+//       );
+//       console.log("screenDetailsMap contents:", Array.from(screenDetailsMap.entries()));
+    
+//       // Now map the screenids to the corresponding screen data
+//       const screensData = screenids.map(screenid => ({
+//         screenid,
+//         screenname: screenDetailsMap.get(screenid) || "Unknown Screen", // Default to "Unknown Screen" if not found
+//         slot9_url,
+//         slot9_clientname: slot9_status,
+//         slot10_url,
+//         slot10_clientname: slot10_status,
+//       }));
+    
+//       res.json({
+//         success: true,
+//         screensData,
+//       });
+//     } else {
+//       res
+//         .status(404)
+//         .json({ success: false, message: "No matching screen data found." });
+//     }
+//   } catch (err) {
+//     console.error("Error fetching screen details:", err);
+//     res.status(500).json({ success: false, message: "Internal Server Error." });
+//   }
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// app.post("/api/get-screen-data", verifyToken, async (req, res) => {
+//   const { userid } = req.body;
+
+//   if (req.user.userid !== userid) {
+//     return res
+//       .status(403)
+//       .json({ success: false, message: "Unauthorized access." });
+//   }
+
+//   try {
+//     if (!userid) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "User ID is required." });
+//     }
+
+//     const userQuery = "SELECT screenids FROM public.auth WHERE userid = $1";
+//     const userResult = await pool.query(userQuery, [userid]);
+
+//     if (userResult.rows.length === 0) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "User not found." });
+//     }
+
+//     const screenids = userResult.rows[0].screenids;
+//     if (!Array.isArray(screenids) || screenids.length === 0) {
+//       return res
+//         .status(404)
+//         .json({
+//           success: false,
+//           message: "No screens associated with this user.",
+//         });
+//     }
+
+//     // Modify the query to fetch data from the screen_proposal table
+//     const screenDetailsQuery = `
+//       SELECT 
+//         sp.screenid,
+//         screenname,
+//         sp.slot9,
+//         sp.slot9_clientname,
+//         sp.slot10,
+//         sp.slot10_clientname
+//       FROM 
+//         public.screen_proposal sp
+//       WHERE 
+//         sp.screenid = ANY($1::int[])
+//     `;
+
+//     const screenDetailsResult = await pool.query(screenDetailsQuery, [
+//       screenids,
+//     ]);
+
+//     if (screenDetailsResult.rows.length > 0) {
+//       // Map the result to rename fields
+//       const screensData = screenDetailsResult.rows.map(row => ({
+//         screenid: row.screenid,
+//         screenname: row.screenname,
+//         slot9: row.slot9,
+//         status_slot09: row.slot9_clientname, // Renamed field
+//         slot10: row.slot10,
+//         status_slot10: row.slot10_clientname, // Renamed field
+//       }));
+
+//       res.json({
+//         success: true,
+//         screensData,
+//       });
+//     } else {
+//       res
+//         .status(404)
+//         .json({ success: false, message: "No matching screen data found." });
+//     }
+//   } catch (err) {
+//     console.error("Error fetching screen details:", err);
+//     res.status(500).json({ success: false, message: "Internal Server Error." });
+//   }
+// });
 
 
 // API to set video data in specified slot for all screenids of a user
