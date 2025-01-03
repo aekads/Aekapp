@@ -767,9 +767,9 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
         screenid,
         screenname: screenDetailsObject[screenid] || "Unknown Screen", // Default to "Unknown Screen" if not found
         slot9_url,
-        slot9_clientname: slot9_status,
+        status_slot09: slot9_status,
         slot10_url,
-        slot10_clientname: slot10_status,
+        status_slot10: slot10_status,
       }));
 
       res.json({
