@@ -400,6 +400,47 @@ app.post("/api/forgot_password", async (req, res) => {
 
 
 
+// API with JWT verification
+app.post('/api/update-device-token', verifyToken, async (req, res) => {
+  const { userid, device_token } = req.body;
+
+  try {
+    // Validate input
+    if (!userid || !device_token) {
+      return res.status(400).json({ message: 'userid and device_token are required.' });
+    }
+
+    // Check if the token's user matches the request's userid
+    if (req.user.userid !== userid) {
+      return res.status(403).json({ message: 'Unauthorized access.' });
+    }
+
+    // Check if the user exists
+    const userResult = await pool.query(
+      'SELECT userid FROM public.auth WHERE userid = $1',
+      [userid]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Update the device_token for the user
+    await pool.query(
+      'UPDATE public.auth SET device_token = $1 WHERE userid = $2',
+      [device_token, userid]
+    );
+
+    res.status(200).json({
+      message: 'Device token updated successfully.',
+      userid,
+      device_token,
+    });
+  } catch (error) {
+    console.error('Error updating device token:', error);
+    res.status(500).json({ message: 'Failed to update device token.' });
+  }
+});
 
 
 // User Check API
@@ -482,7 +523,8 @@ app.post("/api/check-password", async (req, res) => {
       console.log("Password verified successfully"); // Log successful verification
 
       // Generate a JWT token
-      const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "1h" });
+      const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "1d" });
+    
       console.log("Generated JWT token:", token); // Log generated token
 
       // Update the user's status to 1 and save the token
@@ -787,14 +829,8 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
 //       });
 //   }
 // });
-app.post("/api/set-video-slot", verifyToken, async (req, res) => {
+app.post("/api/set-video-slot", async (req, res) => {
   const { userid, video_Data, slot_number } = req.body;
-
-  if (req.user.userid !== userid) {
-    return res
-      .status(403)
-      .json({ success: false, message: "Unauthorized access." });
-  }
 
   try {
     // Validate input
@@ -822,78 +858,60 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
     const userResult = await pool.query(userQuery, [userid]);
 
     if (userResult.rows.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found." });
+      return res.status(404).json({ success: false, message: "User not found." });
     }
 
     const screenids = userResult.rows[0].screenids;
     if (!Array.isArray(screenids) || screenids.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "No screens associated with this user.",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "No screens associated with this user.",
+      });
     }
 
-    // Prepare the new video data to be added
+    // Prepare the new video data
     const newVideoData = {
       video_id: video_Data.id,
-      video_type : `male`,
-      age : `19-14`,
+      video_type: "male",
+      age: "19-14",
       video_url: video_Data.video_url,
-      video_client_name:  video_Data.userid,
+      video_client_name: video_Data.userid,
       video_tag: video_Data.userid,
-    };   
+    };
 
-    // Prepare the values for the slots
-    const slotValue = JSON.stringify([newVideoData,newVideoData,newVideoData,newVideoData]);
-    const slotClientName = "pending"; // Status for client slot
+    // Prepare the column names dynamically
+    const columnUrl = slot_number === "slot9" ? "slot9_url" : "slot10_url";
+    const columnStatus = slot_number === "slot9" ? "slot9_status" : "slot10_status";
 
-    // Iterate through each screenid and update the customer_screens_data table
-    const updatedScreens = [];
-    for (const screenid of screenids) {
-      let customerScreensDataQuery;
+    // Prepare JSON string with four identical objects
+    const slotValue = JSON.stringify([
+      newVideoData,
+      newVideoData,
+      newVideoData,
+      newVideoData,
+    ]);
+    const defaultStatus = "pending";
 
-      // Handle slot9 and slot10 explicitly in the query
-      if (slot_number === "slot9") {
-        customerScreensDataQuery = `
-          INSERT INTO public.screen_proposal (screenid, slot9, slot9_clientname)
-          VALUES ($1, $2, $3)
-          ON CONFLICT (screenid) DO UPDATE
-          SET slot9 = COALESCE(EXCLUDED.slot9, screen_proposal.slot9),
-              slot9_clientname = COALESCE(EXCLUDED.slot9_clientname, screen_proposal.slot9_clientname)
-          RETURNING screenid, slot9, slot9_clientname;
-        `;
-      } else if (slot_number === "slot10") {
-        customerScreensDataQuery = `
-          INSERT INTO public.screen_proposal (screenid, slot10, slot10_clientname)
-          VALUES ($1, $2, $3)
-          ON CONFLICT (screenid) DO UPDATE
-          SET slot10 = COALESCE(EXCLUDED.slot10, screen_proposal.slot10),
-              slot10_clientname = COALESCE(EXCLUDED.slot10_clientname, screen_proposal.slot10_clientname)
-          RETURNING screenid, slot10, slot10_clientname;
-        `;
-      }
-      
-      // Execute the query
-      const customerScreensResult = await pool.query(customerScreensDataQuery, [
-        screenid, // $1
-        slotValue, // $2
-        slotClientName, // $3
-      ]);
-      
+    // Update the `auth` table for the given user
+    const updateQuery = `
+      UPDATE public.auth
+      SET ${columnUrl} = $1,
+          ${columnStatus} = $2
+      WHERE userid = $3
+      RETURNING userid, ${columnUrl}, ${columnStatus};
+    `;
 
-      // Collect the updated screen data
-      updatedScreens.push(customerScreensResult.rows[0]);
+    const updateResult = await pool.query(updateQuery, [slotValue, defaultStatus, userid]);
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Update failed." });
     }
 
     // Respond with success and updated rows
     res.status(200).json({
       success: true,
-      message: "Video data successfully set in the specified slot.",
-      updatedScreens,
+      message: "Video data and status successfully set in the specified slot.",
+      updatedData: updateResult.rows,
     });
   } catch (err) {
     console.error("Error setting video data in slot:", err);
@@ -903,6 +921,8 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
     });
   }
 });
+
+
 
 
 
@@ -1001,49 +1021,7 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
 
 
 
-// API with JWT verification
-app.post('/api/update-device-token', verifyToken, async (req, res) => {
-  const { userid, device_token } = req.body;
-
-  try {
-    // Validate input
-    if (!userid || !device_token) {
-      return res.status(400).json({ message: 'userid and device_token are required.' });
-    }
-
-    // Check if the token's user matches the request's userid
-    if (req.user.userid !== userid) {
-      return res.status(403).json({ message: 'Unauthorized access.' });
-    }
-
-    // Check if the user exists
-    const userResult = await pool.query(
-      'SELECT userid FROM public.auth WHERE userid = $1',
-      [userid]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
-
-    // Update the device_token for the user
-    await pool.query(
-      'UPDATE public.auth SET device_token = $1 WHERE userid = $2',
-      [device_token, userid]
-    );
-
-    res.status(200).json({
-      message: 'Device token updated successfully.',
-      userid,
-      device_token,
-    });
-  } catch (error) {
-    console.error('Error updating device token:', error);
-    res.status(500).json({ message: 'Failed to update device token.' });
-  }
-});
-
-
+// Delete Video Slot API
 // Start Server
 app.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
