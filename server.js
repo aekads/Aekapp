@@ -620,10 +620,7 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
     }
 
     const userQuery = "SELECT screenids FROM public.auth WHERE userid = $1";
-    console.log("Executing query:", userQuery);
-
     const userResult = await pool.query(userQuery, [userid]);
-    console.log("userResult:", userResult.rows);
 
     if (userResult.rows.length === 0) {
       return res
@@ -631,21 +628,14 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
         .json({ success: false, message: "User not found." });
     }
 
-    // Convert screenids from strings to integers
     let screenids = userResult.rows[0].screenids.map(id => parseInt(id, 10));
-    console.log("Converted screenids:", screenids);
 
     if (screenids.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "No screens associated with this user.",
-        });
+      return res.json({
+        success: true,
+        screensData: [], // Return an empty array when no screens are associated
+      });
     }
-
-    // Log the screen ids and the query
-    console.log("Running screen details query with screenids:", screenids);
 
     const screenDetailsQuery = `
       SELECT 
@@ -669,29 +659,30 @@ app.post("/api/get-screen-details", verifyToken, async (req, res) => {
       ON 
         s.screenid = CAST(c.client_name AS INTEGER)
       WHERE 
-        s.screenid = ANY($1::int[])   -- Pass screenids here
+        s.screenid = ANY($1::int[])
     `;
-    console.log("Screen details query:", screenDetailsQuery);
 
-    // Execute the query to get screen details
     const screenDetailsResult = await pool.query(screenDetailsQuery, [screenids]);
-
-    // Log the result of the query
-    console.log("screenDetailsResult:", screenDetailsResult.rows);
 
     if (screenDetailsResult.rows.length > 0) {
       res.json({ success: true, screensData: screenDetailsResult.rows });
     } else {
-      res
-        .status(404)
-        .json({ success: false, message: "No matching screen data found." });
+      // Return null or empty values for each screen ID
+      const screensData = screenids.map(screenid => ({
+        screenid,
+        screenname: null,
+        screentype: "unknown",
+        status: null,
+        updated_at: null,
+      }));
+
+      res.json({ success: true, screensData });
     }
   } catch (err) {
     console.error("Error fetching screen details:", err);
     res.status(500).json({ success: false, message: "Internal Server Error." });
   }
 });
-
 
 
 
