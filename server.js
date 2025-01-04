@@ -134,12 +134,19 @@ app.post(
 
       console.log("File:", req.file);
 
-      // Upload video to Cloudinary
+      // Compress and upload video to Cloudinary
       const cloudinaryResponse = await cloudinary.uploader.upload(
         req.file.path,
         {
           resource_type: "video", // Ensure the file is treated as a video
           folder: "uploaded_videos", // Optional: specify a folder in Cloudinary
+          transformation: [
+            { width: 1080, height: 1920, crop: "fill" },  // Fixed resolution of 1080x1920
+            { fps: 25 },                                 // Set FPS to 25
+            { bit_rate: "500k" },                         // Adjust bitrate to control file size (~500 kbps)
+            { fetch_format: "mp4" },                      // Convert to MP4 format
+            { max_size: 100 * 1024 * 1024 },              // Limit the file size to 100MB (can be adjusted)
+          ],
         }
       );
 
@@ -185,6 +192,7 @@ app.post(
     }
   }
 );
+
 
 // Middleware to handle Multer file upload errors
 app.use((err, req, res, next) => {
