@@ -1150,8 +1150,6 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
 
 
 
-
-
 app.post("/api/set-video-slot", verifyToken, async (req, res) => {
   const { userid, video_Data, slot_number } = req.body;
 
@@ -1173,11 +1171,11 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
     }
 
     // Fetch screen IDs associated with the user
-    const userQuery = 
+    const userQuery = `
       SELECT screenids
       FROM public.auth
       WHERE userid = $1
-    ;
+    `;
     const userResult = await pool.query(userQuery, [userid]);
 
     if (userResult.rows.length === 0) {
@@ -1210,19 +1208,19 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
     const slotValue = JSON.stringify(
       [1, 2, 3, 4].map((index) => ({
         ...newVideoData,
-        video_id: ${video_Data.id}${index}, // Append dynamic index to the video_id 
+        video_id: `${video_Data.id}_${index}`, // Append dynamic index to the video_id
       }))
     );
     const defaultStatus = "pending";
 
-    // Update the auth table for the given user
-    const updateQuery = 
+    // Update the `auth` table for the given user
+    const updateQuery = `
       UPDATE public.auth
       SET ${columnUrl} = $1,
           ${columnStatus} = $2
       WHERE userid = $3
       RETURNING userid, ${columnUrl}, ${columnStatus};
-    ;
+    `;
 
     const updateResult = await pool.query(updateQuery, [slotValue, defaultStatus, userid]);
 
@@ -1243,7 +1241,7 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
       message: "Internal Server Error.",
     });
   }
-}); 
+});
 
 
 
