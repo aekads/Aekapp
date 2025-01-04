@@ -1050,10 +1050,110 @@ app.post("/api/get-screen-data", verifyToken, async (req, res) => {
 //       });
 //   }
 // });
-app.post("/api/set-video-slot",verifyToken, async (req, res) => {
-  const { userid, video_Data, slot_number } = req.body;
+// app.post("/api/set-video-slot",verifyToken, async (req, res) => {
+//   const { userid, video_Data, slot_number } = req.body;
 
   
+
+//   try {
+//     // Validate input
+//     if (!userid || !video_Data || !slot_number) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "User ID, video data, and slot number are required.",
+//       });
+//     }
+
+//     // Ensure the slot number is either slot9 or slot10
+//     if (slot_number !== "slot9" && slot_number !== "slot10") {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid slot number. Only 'slot9' and 'slot10' are allowed.",
+//       });
+//     }
+
+//     // Fetch screen IDs associated with the user
+//     const userQuery = `
+//       SELECT screenids
+//       FROM public.auth
+//       WHERE userid = $1
+//     `;
+//     const userResult = await pool.query(userQuery, [userid]);
+
+//     if (userResult.rows.length === 0) {
+//       return res.status(404).json({ success: false, message: "User not found." });
+//     }
+
+//     const screenids = userResult.rows[0].screenids;
+//     if (!Array.isArray(screenids) || screenids.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "No screens associated with this user.",
+//       });
+//     }
+
+//     // Prepare the new video data
+//     const newVideoData = {
+//       video_id: video_Data.id,
+//       video_type: "male",
+//       age: "19-14",
+//       video_url: video_Data.video_url,
+//       video_client_name: video_Data.userid,
+//       video_tag: video_Data.userid,
+//     };
+
+//     // Prepare the column names dynamically
+//     const columnUrl = slot_number === "slot9" ? "slot9_url" : "slot10_url";
+//     const columnStatus = slot_number === "slot9" ? "slot9_status" : "slot10_status";
+
+//     // Prepare JSON string with four identical objects
+//     const slotValue = JSON.stringify([
+//       newVideoData,
+//       newVideoData,
+//       newVideoData,
+//       newVideoData,
+//     ]);
+//     const defaultStatus = "pending";
+
+//     // Update the `auth` table for the given user
+//     const updateQuery = `
+//       UPDATE public.auth
+//       SET ${columnUrl} = $1,
+//           ${columnStatus} = $2
+//       WHERE userid = $3
+//       RETURNING userid, ${columnUrl}, ${columnStatus};
+//     `;
+
+//     const updateResult = await pool.query(updateQuery, [slotValue, defaultStatus, userid]);
+
+//     if (updateResult.rows.length === 0) {
+//       return res.status(404).json({ success: false, message: "Update failed." });
+//     }
+
+//     // Respond with success and updated rows
+//     res.status(200).json({
+//       success: true,
+//       message: "Video data and status successfully set in the specified slot.",
+//       updatedData: updateResult.rows,
+//     });
+//   } catch (err) {
+//     console.error("Error setting video data in slot:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error.",
+//     });
+//   }
+// });
+
+
+
+
+
+
+
+
+app.post("/api/set-video-slot", verifyToken, async (req, res) => {
+  const { userid, video_Data, slot_number } = req.body;
 
   try {
     // Validate input
@@ -1073,11 +1173,11 @@ app.post("/api/set-video-slot",verifyToken, async (req, res) => {
     }
 
     // Fetch screen IDs associated with the user
-    const userQuery = `
+    const userQuery = 
       SELECT screenids
       FROM public.auth
       WHERE userid = $1
-    `;
+    ;
     const userResult = await pool.query(userQuery, [userid]);
 
     if (userResult.rows.length === 0) {
@@ -1094,7 +1194,7 @@ app.post("/api/set-video-slot",verifyToken, async (req, res) => {
 
     // Prepare the new video data
     const newVideoData = {
-      video_id: video_Data.id,
+      video_id: video_Data.id, // Base ID for appending indices
       video_type: "male",
       age: "19-14",
       video_url: video_Data.video_url,
@@ -1106,23 +1206,23 @@ app.post("/api/set-video-slot",verifyToken, async (req, res) => {
     const columnUrl = slot_number === "slot9" ? "slot9_url" : "slot10_url";
     const columnStatus = slot_number === "slot9" ? "slot9_status" : "slot10_status";
 
-    // Prepare JSON string with four identical objects
-    const slotValue = JSON.stringify([
-      newVideoData,
-      newVideoData,
-      newVideoData,
-      newVideoData,
-    ]);
+    // Prepare JSON string with dynamically indexed objects
+    const slotValue = JSON.stringify(
+      [1, 2, 3, 4].map((index) => ({
+        ...newVideoData,
+        video_id: ${video_Data.id}${index}, // Append dynamic index to the video_id 
+      }))
+    );
     const defaultStatus = "pending";
 
-    // Update the `auth` table for the given user
-    const updateQuery = `
+    // Update the auth table for the given user
+    const updateQuery = 
       UPDATE public.auth
       SET ${columnUrl} = $1,
           ${columnStatus} = $2
       WHERE userid = $3
       RETURNING userid, ${columnUrl}, ${columnStatus};
-    `;
+    ;
 
     const updateResult = await pool.query(updateQuery, [slotValue, defaultStatus, userid]);
 
@@ -1143,7 +1243,32 @@ app.post("/api/set-video-slot",verifyToken, async (req, res) => {
       message: "Internal Server Error.",
     });
   }
-});
+}); 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
