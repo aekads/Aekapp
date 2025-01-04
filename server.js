@@ -1208,7 +1208,7 @@ app.post("/api/set-video-slot", verifyToken, async (req, res) => {
     const slotValue = JSON.stringify(
       [1, 2, 3, 4].map((index) => ({
         ...newVideoData,
-        video_id: `${video_Data.id}_${index}`, // Append dynamic index to the video_id
+        video_id: `${video_Data.id}${index}`, // Append dynamic index to the video_id
       }))
     );
     const defaultStatus = "pending";
