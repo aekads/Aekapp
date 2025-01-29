@@ -338,72 +338,78 @@ const generatePin = () => {
 };
 
 app.post("/api/forgot_password", async (req, res) => {
-    const { userid } = req.body;
+  const { userid } = req.body;
 
-    // Validate input
-    if (!userid) {
-        return res.status(400).json({
-            success: false,
-            message: "UserID is required.",
-        });
-    }
+  // Validate input
+  if (!userid) {
+      return res.status(400).json({
+          success: false,
+          message: "UserID is required.",
+      });
+  }
 
-    try {
-        // Check if the userid exists in the database and fetch the email
-        const result = await pool.query("SELECT email FROM auth WHERE userid = $1", [userid]);
+  try {
+      // Check if the userid exists in the database and fetch the email
+      const result = await pool.query("SELECT email,username FROM auth WHERE userid = $1", [userid]);
 
-        if (result.rows.length === 0) {
-            console.error("UserID not found:", userid);
-            return res.status(404).json({
-                success: false,
-                message: "UserID not found.",
-            });
-        }
+      if (result.rows.length === 0) {
+          console.error("UserID not found:", userid);
+          return res.status(404).json({
+              success: false,
+              message: "UserID not found.",
+          });
+      }
 
-        const { email } = result.rows[0];
+      const { email,username } = result.rows[0];
 
-        // Generate a new 4-digit PIN
-        const newPin = generatePin();
+      // Generate a new 4-digit PIN
+      const newPin = generatePin();
 
-        // Send the PIN to the user's email
-        const mailOptions = {
-            from: "your_email@gmail.com", // Replace with your email
-            to: email,
-            subject: "Your Password Reset PIN",
-            text: `
-                Hello,
+      // **Update the PIN in the database**
+      await pool.query("UPDATE auth SET password = $1 WHERE userid = $2", [newPin, userid]);
 
-                You requested a password reset.
-                Your PIN for resetting your password is: ${newPin}
+      // Send the PIN to the user's email
+      const mailOptions = {
+          from: "your_email@gmail.com", // Replace with your email
+          to: email,
+          subject: "Your Password Reset PIN",
+          text: `
+              Hello,  ${username}
 
-                Regards,
-                The Team
-            `,
-        };
+             
 
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error("Error sending email:", error);
-                return res.status(500).json({
-                    success: false,
-                    message: "Error sending email.",
-                });
-            }
-            console.log("Email sent: " + info.response);
+              You requested a password reset.
+              Your PIN for resetting your password is: ${newPin}
 
-            // Respond with success
-            return res.json({
-                success: true,
-                message: "A 4-digit PIN has been sent to the registered email.",
-            });
-        });
-    } catch (err) {
-        console.error("Error handling password reset:", err);
-        res.status(500).json({
-            success: false,
-            message: "An error occurred while processing your request.",
-        });
-    }
+              Regards,
+              The Team
+          `,
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+              console.error("Error sending email:", error);
+              return res.status(500).json({
+                  success: false,
+                  message: "Error sending email.",
+              });
+          }
+          console.log("Email sent: " + info.response);
+
+          // Respond with success
+          return res.json({
+              success: true,
+              message: "A 4-digit PIN has been sent to the registered email.",
+          });
+      });
+
+  } catch (err) {
+      console.error("Error handling password reset:", err);
+      res.status(500).json({
+          success: false,
+          message: "An error occurred while processing your request.",
+      });
+  }
 });
 
 
