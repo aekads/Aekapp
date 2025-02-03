@@ -538,7 +538,7 @@ app.post("/api/check-password", async (req, res) => {
       console.log("Password verified successfully"); // Log successful verification
 
       // Generate a JWT token
-      const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "1d" });
+      const token = jwt.sign({ userid }, JWT_SECRET, { expiresIn: "365d" });
     
       console.log("Generated JWT token:", token); // Log generated token
 
