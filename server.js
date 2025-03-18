@@ -205,7 +205,7 @@ app.post(
       console.log("Database Result:", dbResult.rows[0]);
 
              // Log successful upload
-      await logAction(req, "UPLOAD_SUCCESS", `The Chairman of AekApp has successfully uploaded.`);
+      await logAction(req, "UPLOAD_SUCCESS", `The Chairman of AekApp has successfully video uploaded.`);
 
       // Respond with success message and details
       res.status(200).json({
