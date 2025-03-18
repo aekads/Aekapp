@@ -32,15 +32,15 @@ const logAction = async (req, action, message, salesEnquiryId = null) => {
     const ip = getClientIP(req);
 
     // Fetch user details from the database if needed
-    let userName = "Anonymous"; // Default name
-    if (req.user && req.user.emp_id) {
-      const userQuery = `SELECT username FROM auth WHERE userid = $1`;
-      const userResult = await pool.query(userQuery, [req.user.emp_id]);
-      userName = userResult.rows.length > 0 ? userResult.rows[0].name : "Anonymous";
-    }
+      // Fetch user details from the database if needed
+let userName = "Anonymous"; // Default name
+if (req.user && req.user.userid) {
+  const userQuery = `SELECT username FROM auth WHERE userid = $1`;
+  const userResult = await pool.query(userQuery, [req.user.userid]);
+  userName = userResult.rows.length > 0 ? userResult.rows[0].username : "Anonymous";
+}
 
-    const logMessage = `${userName} ${message}`;
-
+const logMessage = `${userName} ${message}`;
     // Insert log into Logs table
     const logQuery = `
         INSERT INTO public."Logs" (action, message, ip, "createdAt", "updatedAt") 
