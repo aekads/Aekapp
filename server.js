@@ -15,6 +15,47 @@ const pool = new Pool({
   port: 5432,
 });
  
+
+
+
+
+const getClientIP = (req) => {
+  let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  if (ip.includes(',')) ip = ip.split(',')[0]; // Handle multiple IPs
+  return ip || 'Unknown IP';
+};
+
+
+
+const logAction = async (req, action, message, salesEnquiryId = null) => {
+  try {
+    const ip = getClientIP(req);
+
+    // Fetch user details from the database if needed
+    let userName = "Anonymous"; // Default name
+    if (req.user && req.user.emp_id) {
+      const userQuery = `SELECT username FROM auth WHERE userid = $1`;
+      const userResult = await pool.query(userQuery, [req.user.emp_id]);
+      userName = userResult.rows.length > 0 ? userResult.rows[0].name : "Anonymous";
+    }
+
+    const logMessage = `${userName} ${message}`;
+
+    // Insert log into Logs table
+    const logQuery = `
+        INSERT INTO public."Logs" (action, message, ip, "createdAt", "updatedAt") 
+        VALUES ($1, $2, $3, NOW() AT TIME ZONE 'Asia/Kolkata', NOW() AT TIME ZONE 'Asia/Kolkata') 
+        RETURNING id;
+    `;
+
+    const result = await pool.query(logQuery, [action, logMessage, ip]);
+
+    return result.rows[0].id; // Return the inserted log ID
+  } catch (error) {
+    console.error("Error logging action:", error);
+    return null;
+  }
+};
                                  
             
 
@@ -162,6 +203,9 @@ app.post(
       const dbResult = await pool.query(query, [req.user.userid, videoUrl]);
 
       console.log("Database Result:", dbResult.rows[0]);
+
+             // Log successful upload
+      await logAction(req, "UPLOAD_SUCCESS", `The Chairman of AekApp has successfully uploaded.`);
 
       // Respond with success message and details
       res.status(200).json({
@@ -1333,6 +1377,11 @@ app.post("/api/delete-video-slot", verifyToken, async (req, res) => {
       WHERE screenid = ANY($1::int[])
     `;
     await pool.query(screensUpdateQuery, [screenids]);
+
+     // **Log the action**
+     const logMessage = `The Chairman of AekApp has deleted data from slot ${slot_number}.`;
+     await logAction(req, "DELETE_SLOT", logMessage);
+ 
 
     res.status(200).json({
       success: true,
